@@ -1,0 +1,49 @@
+{
+	"baselineFile": "sample.ts",
+	"expectedFile": "sample.expected.ts",
+	"hunks": [
+		{
+			"id": "h1",
+			"baselineStart": 13,
+			"baselineCount": 0,
+			"insert": [
+				"\t// h1: the agent normalised the title before formatting.",
+				"\tconst trimmed = task.title.trim();",
+				"\ttask = { ...task, title: trimmed };"
+			]
+		},
+		{
+			"id": "h2",
+			"baselineStart": 21,
+			"baselineCount": 2,
+			"insert": []
+		},
+		{
+			"id": "h3",
+			"baselineStart": 36,
+			"baselineCount": 1,
+			"insert": ["\treturn `${countDone(tasks)} / ${tasks.length}`;"]
+		},
+		{
+			"id": "h4",
+			"baselineStart": 0,
+			"baselineCount": 1,
+			"insert": []
+		},
+		{
+			"id": "h5",
+			"baselineStart": 38,
+			"baselineCount": 0,
+			"insert": [
+				"// h5: the agent appended a module-level convenience export.",
+				"export const TASK_SEPARATOR = SEPARATOR;"
+			]
+		},
+		{
+			"id": "h6",
+			"baselineStart": 27,
+			"baselineCount": 3,
+			"insert": ["\t\tcount += task.done ? 1 : 0;"]
+		}
+	]
+}

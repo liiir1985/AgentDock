@@ -1,0 +1,183 @@
+{
+  "name": "agentdock-editor-review-poc",
+  "displayName": "AgentDock Editor Review PoC",
+  "description": "Editor Review PoC: inline per-hunk diff review inside a normal text editor using stable VS Code APIs only.",
+  "publisher": "agentdock",
+  "version": "0.0.1",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.137.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "enabledApiProposals": [
+    "editorInsets"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentReview.applyFakePatch",
+        "title": "Agent Review: Apply Fake Agent Patch"
+      },
+      {
+        "command": "agentReview.resetFixture",
+        "title": "Agent Review: Reset Fixture"
+      },
+      {
+        "command": "agentReview.acceptHunk",
+        "title": "Agent Review: Accept Hunk"
+      },
+      {
+        "command": "agentReview.rejectHunk",
+        "title": "Agent Review: Reject Hunk"
+      },
+      {
+        "command": "agentReview.acceptFile",
+        "title": "Agent Review: Accept File"
+      },
+      {
+        "command": "agentReview.rejectFile",
+        "title": "Agent Review: Reject File"
+      },
+      {
+        "command": "agentReview.setRenderMode",
+        "title": "Agent Review: Set Render Mode"
+      },
+      {
+        "command": "agentReview.probeRendering",
+        "title": "Agent Review: Run Rendering Probe"
+      },
+      {
+        "command": "agentReview.getState",
+        "title": "Agent Review: Dump State"
+      },
+      {
+        "command": "agentReview.validateFixture",
+        "title": "Agent Review: Validate Fixture"
+      },
+      {
+        "command": "agentReview.showHunkDetails",
+        "title": "Agent Review: Show Hunk Details"
+      },
+      {
+        "command": "agentReview.showDeletedLines",
+        "title": "Agent Review: Show Deleted Lines"
+      },
+      {
+        "command": "agentReview.acceptHunkFromThread",
+        "title": "Accept",
+        "icon": {
+          "light": "media/check.svg",
+          "dark": "media/check.svg"
+        }
+      },
+      {
+        "command": "agentReview.rejectHunkFromThread",
+        "title": "Reject",
+        "icon": {
+          "light": "media/x.svg",
+          "dark": "media/x.svg"
+        }
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "agentReview.acceptHunk",
+          "when": "false"
+        },
+        {
+          "command": "agentReview.rejectHunk",
+          "when": "false"
+        },
+        {
+          "command": "agentReview.getState",
+          "when": "false"
+        },
+        {
+          "command": "agentReview.showHunkDetails",
+          "when": "false"
+        },
+        {
+          "command": "agentReview.showDeletedLines",
+          "when": "false"
+        },
+        {
+          "command": "agentReview.acceptHunkFromThread",
+          "when": "false"
+        },
+        {
+          "command": "agentReview.rejectHunkFromThread",
+          "when": "false"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "agentReview.acceptHunkFromThread",
+          "group": "navigation@1",
+          "when": "commentController == agentdock.review && commentThread == agentdockHunkPending"
+        },
+        {
+          "command": "agentReview.rejectHunkFromThread",
+          "group": "navigation@2",
+          "when": "commentController == agentdock.review && commentThread == agentdockHunkPending"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "agentReview.acceptHunk",
+          "group": "agentReview@1",
+          "when": "editorLangId == typescript"
+        },
+        {
+          "command": "agentReview.rejectHunk",
+          "group": "agentReview@2",
+          "when": "editorLangId == typescript"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Review",
+      "properties": {
+        "agentReview.renderMode": {
+          "type": "string",
+          "enum": [
+            "decorations",
+            "comments",
+            "insets"
+          ],
+          "default": "decorations",
+          "description": "A = decorations + CodeLens (stable). B = Comments API inline block (stable). C = webview editor insets, requires --enable-proposed-api (proposed)."
+        },
+        "agentReview.autoApply": {
+          "type": "boolean",
+          "default": true,
+          "description": "Apply the fake agent patch automatically when fixtures/sample.ts is opened."
+        },
+        "agentReview.insetRowHeight": {
+          "type": "number",
+          "default": 0,
+          "description": "Scheme C only: pixel height of one old-side row inside a webview inset. 0 = derive from editor.fontSize (use when the inset rows drift out of step with the editor's lines)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "test": "node --test \"out/test/unit/*.test.js\"",
+    "test:integration": "node ./out/test/integration/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/vscode": "1.137.0",
+    "@vscode/test-electron": "3.1.0",
+    "typescript": "7.0.2"
+  }
+}
