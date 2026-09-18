@@ -1,6 +1,6 @@
 # AgentDock 产品设计
 
-> v1 · 2026-09-18。**证据**见 `reference/facts.md`；**每条决策的裁定人与理由**见 `reference/decisions.md`（D1–D44）；**实现步骤**见 `02-implementation-plan.md`。
+> v1 · 2026-09-18。**证据**见 `reference/facts.md`；**每条决策的裁定人与理由**见 `reference/decisions.md`（D1–D45）；**实现步骤**见 `02-implementation-plan.md`；**Core 的模型与语义**见 `03-core-design.md`。
 > 本文是产品行为的规范来源；与决策台账冲突时以后者为准（台账更靠近用户原话）。
 
 ## 1. 一句话
@@ -91,7 +91,7 @@ Core **不假设**任何 harness 的能力。每个 adapter 必须声明，UI �
   3. **脚本 / 用户程序生成的文件 → 不做任何归因**。
   **不做全盘磁盘监控**；且"**可拦**"与"**可归因**"始终分开表述（D40）。
 - 文件级 `new` / `remove` / `rename` 是**一等实体**（D6）；`rename` 是真 rename，不是 delete+add。
-- Hunk 状态：`pending` / `accepted` / `rejected(reason: user | conflict)`。**`stale` 作为终态已取消**（D19）。
+- Hunk 状态：`pending` / `accepted` / `rejected(reason: user | conflict)`。**`stale` 作为终态已取消**（D19）。**"保留，但内容是你的"不是第四个状态**，而是 `accepted` + `userEdited` 的组合——它是**唯一必须回传给 agent** 的终态（D3.3 / D45）：agent 要知道上一轮哪些改动被你改写过。
 - **baseline**：IDE 自持懒快照，与 Git 零耦合（D5）。**破坏性操作（delete / move）被批准之前必须先拍快照**，否则 Reject 无法还原。
 
 ### 6.1 裁决语义（最容易写错的一处）
@@ -100,14 +100,18 @@ Core **不假设**任何 harness 的能力。每个 adapter 必须声明，UI �
 | --- | --- | --- |
 | Accept hunk / file / turn | **否** | 文档**已经是 agent 改后的状态**，Accept 只是确认保留 |
 | Reject hunk / file / turn | **是** | 用 baseline 恢复 |
-| 用户改过 new 侧后 Accept | **否** | 采纳当前文本 |
+| 用户改过 new 侧后 Accept | **否** | 采纳当前文本，并记为"保留的是你的文本"（`accepted` + `userEdited`，D45） |
 | Accept 一个新建文件 | 否 | 文件已经在了 |
 | Reject 一个新建文件 | 是 | 删除该文件 |
 | Accept 一个删除 | 否 | 文件已经删了 |
 | Reject 一个删除 | 是 | 从快照复原 |
 | rename | — | Accept 无动作；Reject 反向重命名 |
 
+**Accept All / 文件级 Accept 必须分流**：逐 hunk 判断，而不是一律记为 `accepted`。被用户改写过的 hunk 要**单独呈现与汇总**（例如"3 处按你的文本保留"），否则"你写的被覆盖了"这件事在一次 Accept All 里就被抹平，下一轮 agent 也就无从知道（D45）。
+
 **写盘策略**（D28）：IDE 对文档的任何修改（agent 写入、Reject 还原）**一律立即保存**。后果：用户在该文件里此前的未保存改动会被一并提交——这是明确接受的取舍，不得隐藏。
+
+**回退的连带后果**：`revertTo(N)` 逐字节回写第 N 轮前的文本，因此**会盖掉这些"按你的文本保留"的区域**。含此类 hunk 的轮次在回退前必须警告，否则是静默删除用户自己的文本（D45）。
 
 ### 6.2 外部修改与冲突（D19）
 

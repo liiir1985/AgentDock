@@ -1,0 +1,21 @@
+{
+  "name": "@agentdock/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Host-agnostic change model: diff/hunk derivation, reconcile, baseline snapshots, attribution, revert (D22: no `vscode`, no I/O).",
+  "main": "./out/index.js",
+  "types": "./out/index.d.ts",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "test": "node --test \"out/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/node": "24.13.5",
+    "typescript": "7.0.2"
+  }
+}

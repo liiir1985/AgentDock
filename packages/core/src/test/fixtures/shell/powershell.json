@@ -1,0 +1,16 @@
+[
+	{ "command": "Set-Content -Path src/x.txt -Value 'hi'", "reliable": true, "paths": ["src/x.txt"] },
+	{ "command": "Remove-Item -LiteralPath src/x.txt", "reliable": true, "paths": ["src/x.txt"] },
+	{ "command": "Move-Item -Path src/a.txt -Destination src/b.txt", "reliable": true, "paths": ["src/a.txt", "src/b.txt"] },
+	{ "command": "Copy-Item src/a.txt src/b.txt", "reliable": true, "paths": ["src/b.txt"] },
+	{ "command": "New-Item -ItemType File -Path src/new.txt", "reliable": true, "paths": ["src/new.txt"] },
+	{ "command": "Tee-Object -FilePath logs/run.log", "reliable": true, "paths": ["logs/run.log"] },
+	{ "command": "Get-Content src/a.txt > src/b.txt", "reliable": true, "paths": ["src/b.txt"] },
+	{ "command": "Remove-Item a; Remove-Item b", "reliable": false, "paths": [] },
+	{ "command": "Remove-Item $p", "reliable": false, "paths": [] },
+	{ "command": "Set-Content -Path src/x.txt -Value (Get-Date)", "reliable": false, "paths": [] },
+	{ "command": "Get-ChildItem | Remove-Item", "reliable": false, "paths": [] },
+	{ "command": "New-Item -ItemType Directory -Path src/dir", "reliable": false, "paths": [] },
+	{ "command": "Remove-Item C:\\temp\\x.txt", "reliable": false, "paths": [] },
+	{ "command": "& script.ps1", "reliable": false, "paths": [] }
+]

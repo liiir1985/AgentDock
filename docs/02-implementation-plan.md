@@ -1,6 +1,6 @@
 # 实现步骤拆分
 
-> v1.3 · 2026-09-18（按 **D36 / D37：一期 OMP adapter = SDK sidecar + 复用现有 Bun** 改写；**D42 / D43** 补入归因三层与 shell 方言）。与 `01-product-design.md`（产品行为）和 `reference/decisions.md`（D1–D44）配套；冲突时以决策台账为准。
+> v1.3 · 2026-09-18（按 **D36 / D37：一期 OMP adapter = SDK sidecar + 复用现有 Bun** 改写；**D42 / D43** 补入归因三层与 shell 方言）。与 `01-product-design.md`（产品行为）、`03-core-design.md`（Core 的模型与语义）和 `reference/decisions.md`（D1–D45）配套；冲突时以决策台账为准。
 >
 > **拆分原则**：每个阶段结束时产品必须在真实环境里**端到端可用**；退出标准是**可测行为**，不是"代码写完"。顺序按 D12（review → LSP 能力 → 调试）与"最快开始自用"编排。
 
@@ -28,7 +28,7 @@
 
 **交付物**
 
-1. `Session / Turn / ChangeSet / FileChange / Hunk` 与状态机 `pending | accepted | rejected(reason: user | conflict)`；文件级 `new / remove / rename` 为一等实体（D6）。
+1. `Session / Turn / ChangeSet / FileChange / Hunk` 与状态机 `pending | accepted | rejected(reason: user | conflict)`；**"保留但内容是用户的" = `accepted` + `userEdited`**（终态，必须回传给 agent，D45）；文件级 `new / remove / rename` 为一等实体（D6）。
 2. **Diff/Hunk 推导引擎**：baseline + 当前文本 → 行级 hunk；`rename` 是真 rename。
 3. **Reconcile**：扩展现有 4 规则决策表，覆盖跨 hunk 边界、一次编辑命中多 hunk、文件级操作，并实现 **D19 的"重应用 / 冲突"**（替换 PoC 的 `stale` 冻结）。
 4. **Baseline 快照**：拍摄时机由 `write.intercept` 级别决定（`own` / `blocking-hook` = 写入前**精确**拍摄；`async-signal` = 抢拍 + 声明 diff 兜底；`post-hoc` = 只能用声明 diff）；与 Git 零耦合（D5）。
@@ -95,7 +95,7 @@
 
 ## 阶段 5 — 反馈回路
 
-**交付物**：`review.lastOutcome` 经 **`customTools` + `setActiveToolsByName` 动态挂载**；**仅当存在用户修改/拒绝时才注册该工具**，描述自述其意；输出区分 `rejected(user)` 与 `rejected(conflict)`（D13 / D19）。
+**交付物**：`review.lastOutcome` 经 **`customTools` + `setActiveToolsByName` 动态挂载**；**仅当存在用户修改/拒绝时才注册该工具**，描述自述其意；输出区分**三种结局**：`rejected(user)`、`rejected(conflict)`、**"保留但内容是用户的"**（`accepted` + `userEdited`，D45），并按 hunk 给出**区域 + agent 当初写的文本 + 该区域当前文本**——只报状态标签不算"aware"（D13 / D19）。
 
 **退出标准**：拒绝一处 hunk 后，**工具在下一次模型请求中可用**；agent 调用后其后续行为体现它知道这处是被冲突丢弃而非用户审阅拒绝。
 
