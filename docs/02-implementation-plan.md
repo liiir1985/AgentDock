@@ -53,6 +53,9 @@
 
 1. **OMP SDK sidecar**：一个跑在 Bun 里的宿主脚本，import `@oh-my-pi/pi-coding-agent` 的 `createAgentSession`；扩展 ↔ sidecar 之间是**我们自己的 IPC**（不是 OMP 的 CLI 契约）。sidecar 负责：会话创建/恢复（`SessionManager`）、`session.subscribe` 全事件流转发、`prompt` / `abort` / `steer` / `followUp`，并以 **`agent_end.isTerminal !== false`** 判定 turn 真正结束（D2）。启动时上报 SDK 与 Bun 版本，不匹配则**明确拒绝运行**（D37）。
 2. **T1 层归因：内置文件变更工具，要求完全准确**（D42）：用 **`customTools` 包裹全部内置文件变更工具**（`write` / `edit` / `apply_patch` / `ast_edit` …），包裹实现里用 **`ctx.invokeTool` 委托原生工具**——不重写工具语义，只在前后拍快照并归因。可选地在 `write` / `edit` 上**亲自执行字节写入**以取得最强保证（D37），但**不得因此漏掉任何内置文件变更工具**。
+
+> **实现备注（阶段 1，2026-09-20）**：本项实际以 **OMP 扩展的阻断式 `tool_call` / `tool_result` 钩子**实现，未注册 `customTools` 包装。钩子在**每次工具调用前**对受影响路径拍精确前像（对应 `write.intercept: 'own'`，即 `snapshotPolicy('own') === 'exact-before'`），调用后回填并 reconcile；T1/T2/T3 由 `toolClasses.ts` 的分类表判定，未识别的工具按 T3 处理并在启动时告警（"未归因的改动不得伪装成已审阅"）。
+> 理由：包装路线的覆盖保证是"我们把内置工具列全了"，漏一个就是**静默**错误归因（本文件风险表里那条遮蔽偏差由此而来）；钩子路线的覆盖是结构性的——任何工具（含未来新增、扩展注册的）都必然经过钩子，风险从"漏掉"变成"多拍一次快照"。D37 要求的"写入前精确拍摄"两条路线等价；本项标注为可选的"亲自执行字节写入"未采用。
 3. **动态工具通道**：`customTools` / `setActiveToolsByName` 打通（阶段 5 才真正用它挂 `review.lastOutcome`）。
 4. **编辑器内渲染（唯一路径）**：old 侧 insets + new 侧 decorations + CodeLens 动作行，三者同步到同一次 `provideCodeLenses` 查询提交（D11）。
 5. **文档顶部**：editor title 菜单的 Accept All / Reject All / `< 1/10 >` 导航（D24）。
@@ -79,6 +82,9 @@
 **交付物**：审批转接（OMP 侧是 `setToolUIContext` 下的 `select([Approve, Deny])`，**与 RPC 等价、不更强**，D37）；**首次运行引导必须提示 OMP 的审批默认是 `yolo`**——不配置就没有任何闸门（D35）；破坏性操作前的**快照拍摄**（D26）；能力声明的完整落地与**降级 UI**（D9）；`steer` 的按能力开关（D25）。
 
 **退出标准**：agent 触发破坏性动作时出现审批；adapter 未声明 `permission.request` 时 UI 明确说明"无前置闸门"。
+
+> **实现备注（阶段 1 末实测，2026-09-20，OMP 18.2.5）**：本阶段设想的转接路径在 SDK 嵌入会话里**不通**。`ExtensionToolWrapper` 的审批闸门先问 `runner.hasUI()`，而 `ExtensionRunner.hasUI()` 判的是 runner 自己的 `#uiContext`——它只由 `ExtensionRunner.initialize()` 安装，`createAgentSession()` 从不调用该方法；SDK 唯一暴露的 UI 接缝 `setToolUIContext` 只写 `toolContextStore`（即工具看到的 `ctx.ui`），不碰 runner。实测：项目层 `tools.approvalMode: always-ask` 下让 agent `edit`，闸门在**任何提示之前** fail-closed 抛 `Tool "edit" requires approval but no interactive UI available.`，改动没有落盘，window 侧一条 `ui-request` 都收不到。
+> 所以本阶段的第一件事是**拿到接缝**：要么 OMP 暴露 runner 级 UI（`setRunnerUIContext` / 暴露 `ExtensionRunner`），要么 `createAgentSession` 接受一个 UI 实现并在内部转交给 `initialize()`。在此之前 `permission.request` 只能声明 `false`，UI 按 D35 明说"无前置闸门"，并提示 `always-ask` / `write` 两个模式在嵌入会话里不是"多一道确认"，而是**所有写操作直接被拒**。
 
 ## 阶段 4 — 会话生命周期操作（回退 / fork / 压缩 / 用量）
 

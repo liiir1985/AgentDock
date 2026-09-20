@@ -146,6 +146,34 @@ export class TurnLedger {
 		return this.reconcileKnown(path, after);
 	}
 
+	/**
+	 * The host applied a verdict while the turn is still open (D26): the model it hands back —
+	 * statuses flipped, coordinates already reconciled against the document — replaces the entry for
+	 * that path.
+	 *
+	 * The seam exists because a verdict and a later write in the *same* turn both want to own the
+	 * entry. Without it, a write recorded after an Accept would reconcile against the pre-verdict file
+	 * and re-open hunks the user had already decided.
+	 *
+	 * `text` moves what we believe the document holds; Reject writes bytes, so it has to travel with
+	 * the file. Omit it when the verdict left the document alone — Accept never edits (D26).
+	 */
+	replaceFile(file: FileChange, text?: TextLines): Turn {
+		const turn = this.requireTurn();
+		const entry = this.entries.find(
+			(candidate) => candidate.file.path === file.path || candidate.file.path === file.fromPath,
+		);
+		if (!entry) return this.publish(turn);
+		const previousPath = entry.file.path;
+		entry.file = file;
+		if (text !== undefined) {
+			entry.lastKnown = text;
+			if (previousPath !== file.path) this.known.delete(previousPath);
+			this.known.set(file.path, text);
+		}
+		return this.publish(turn);
+	}
+
 	/** The text we believe a tracked path holds; the host renders and diffs against this. */
 	lastKnown(path: string): TextLines | undefined {
 		return this.known.get(path);

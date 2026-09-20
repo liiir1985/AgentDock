@@ -4,15 +4,19 @@
   "private": true,
   "license": "MIT",
   "workspaces": [
-    "packages/core"
+    "packages/core",
+    "packages/sidecar",
+    "packages/vscode"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "compile": "npm run compile --workspace @agentdock/core",
-    "watch": "npm run watch --workspace @agentdock/core",
-    "test": "npm run test --workspace @agentdock/core",
-    "check": "npm run compile && npm test"
+    "compile": "npm run compile -w packages/core && npm run typecheck -w packages/sidecar && npm run compile -w packages/vscode",
+    "watch": "npm run watch -w packages/core",
+    "test": "npm run test -w packages/core && npm run test -w packages/vscode",
+    "test:sidecar": "bun test packages/sidecar/src",
+    "test:integration": "npm run test:integration -w packages/vscode",
+    "check": "npm run compile && npm test && npm run test:sidecar"
   }
 }

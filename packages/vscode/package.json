@@ -1,0 +1,229 @@
+{
+  "name": "agentdock",
+  "displayName": "AgentDock",
+  "description": "Per-hunk review of what a coding agent changed, inside the editor: old side as inset rows, new side highlighted, Accept / Reject as one action row.",
+  "publisher": "agentdock",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.138.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "enabledApiProposals": [
+    "editorInsets"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentdock.focusChat",
+        "title": "AgentDock: 打开对话面板"
+      },
+      {
+        "command": "agentdock.abort",
+        "title": "AgentDock: 中断当前 turn"
+      },
+      {
+        "command": "agentdock.showSidecarLog",
+        "title": "AgentDock: 显示 sidecar 输出"
+      },
+      {
+        "command": "agentdock.restartSidecar",
+        "title": "AgentDock: 重启 sidecar"
+      },
+      {
+        "command": "agentdock.prevHunk",
+        "title": "AgentDock: 上一个 hunk"
+      },
+      {
+        "command": "agentdock.nextHunk",
+        "title": "AgentDock: 下一个 hunk"
+      },
+      {
+        "command": "agentdock.openChange",
+        "title": "AgentDock: 打开改动"
+      },
+      {
+        "command": "agentdock.prompt",
+        "title": "AgentDock: 发送 prompt"
+      },
+      {
+        "command": "agentdock.acceptHunk",
+        "title": "AgentDock: Accept Hunk"
+      },
+      {
+        "command": "agentdock.rejectHunk",
+        "title": "AgentDock: Reject Hunk"
+      },
+      {
+        "command": "agentdock.acceptFile",
+        "title": "AgentDock: Accept File"
+      },
+      {
+        "command": "agentdock.rejectFile",
+        "title": "AgentDock: Reject File"
+      },
+      {
+        "command": "agentdock.acceptAll",
+        "title": "Accept All",
+        "icon": {
+          "light": "media/check.svg",
+          "dark": "media/check.svg"
+        }
+      },
+      {
+        "command": "agentdock.rejectAll",
+        "title": "Reject All",
+        "icon": {
+          "light": "media/x.svg",
+          "dark": "media/x.svg"
+        }
+      },
+      {
+        "command": "agentdock.prevHunkIcon",
+        "title": "上一个 hunk",
+        "icon": {
+          "light": "media/chevron-left.svg",
+          "dark": "media/chevron-left.svg"
+        }
+      },
+      {
+        "command": "agentdock.nextHunkIcon",
+        "title": "下一个 hunk",
+        "icon": {
+          "light": "media/chevron-right.svg",
+          "dark": "media/chevron-right.svg"
+        }
+      },
+      {
+        "command": "agentdock.getState",
+        "title": "AgentDock: Dump Review State"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "agentdock.prompt",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.acceptHunk",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.rejectHunk",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.acceptFile",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.rejectFile",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.acceptAll",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.rejectAll",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.prevHunkIcon",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.nextHunkIcon",
+          "when": "false"
+        },
+        {
+          "command": "agentdock.getState",
+          "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "agentdock.acceptAll",
+          "group": "agentdock@1",
+          "when": "agentdock.hasPendingHunks"
+        },
+        {
+          "command": "agentdock.rejectAll",
+          "group": "agentdock@2",
+          "when": "agentdock.hasPendingHunks"
+        },
+        {
+          "command": "agentdock.prevHunkIcon",
+          "group": "agentdock@3",
+          "when": "agentdock.hasPendingHunks"
+        },
+        {
+          "command": "agentdock.nextHunkIcon",
+          "group": "agentdock@4",
+          "when": "agentdock.hasPendingHunks"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentdock",
+          "title": "AgentDock",
+          "icon": "media/agentdock.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentdock": [
+        {
+          "id": "agentdock.changes",
+          "name": "Changes",
+          "type": "webview"
+        },
+        {
+          "id": "agentdock.chat",
+          "name": "AgentDock",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AgentDock",
+      "properties": {
+        "agentdock.insetRowHeight": {
+          "type": "number",
+          "default": 0,
+          "description": "old 侧 inserted inset 的行像素高；0 = 由 editor.fontSize 推导。"
+        },
+        "agentdock.bunPath": {
+          "type": "string",
+          "default": "",
+          "description": "bun 可执行文件路径；空 = 自动探测（PATH，然后 %USERPROFILE%\\.bun\\bin\\bun.exe）。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "test": "node --test \"out/**/*.test.js\"",
+    "test:integration": "node ./out/test/integration/runTest.js"
+  },
+  "dependencies": {
+    "@agentdock/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/vscode": "1.138.0",
+    "@vscode/test-electron": "3.1.0",
+    "typescript": "7.0.2"
+  }
+}

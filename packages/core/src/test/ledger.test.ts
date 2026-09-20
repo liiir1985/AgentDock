@@ -9,8 +9,8 @@ import { deepStrictEqual, ok, strictEqual, throws } from 'node:assert/strict';
 import { TurnLedger } from '../ledger';
 import { joinLines, splitLines } from '../lines';
 import { FileChange, ObservedWrite, Turn, hunkKeepsUserText } from '../model';
-import { assertHunksDisjoint } from '../reconcile';
-import { acceptFile, rejectFile, rejectTurn } from '../verdict';
+import { assertHunksDisjoint, reconcileDocument } from '../reconcile';
+import { acceptFile, acceptHunk, rejectFile, rejectHunk, rejectTurn } from '../verdict';
 import { applyPlans, attribution } from './support';
 
 const PATH = 'src/x.ts';
@@ -248,4 +248,62 @@ test('hunks stay disjoint and ordered across a mixed sequence', () => {
 	ledger.recordUserEdit(PATH, splitLines('a\nB\nc\nUSER\nd\ne\nf\nX\n'));
 	ledger.record(modify('a\nB\nc\nUSER\nd\ne\nf\nX\n', 'a\nB\nc\nUSER\nd\ne\nf\nXX\n'));
 	for (const file of filesOf(ledger.endTurn())) assertHunksDisjoint(file);
+});
+
+test('a verdict applied mid-turn survives the next write to the same path', () => {
+	const ledger = new TurnLedger('s1', 'exact-before');
+	ledger.beginTurn();
+	ledger.record(modify('a\nb\nc\n', 'a\nB\nc\n'));
+	// The host accepts the hunk while the turn is still open, then hands the model back.
+	ledger.replaceFile(acceptHunk(fileAt(ledger.current()), 'h1'));
+
+	// A later write in the same turn must not re-open what the user already decided: reconciling the
+	// pre-verdict file is exactly what would flip `accepted` back to `pending`.
+	const turn = ledger.record(modify('a\nB\nc\n', 'a\nB\nc\nd\n'));
+	deepStrictEqual(
+		fileAt(turn).hunks.map((hunk) => [hunk.id, hunk.status]),
+		[
+			['h1', 'accepted'],
+			['h2', 'pending'],
+		],
+	);
+});
+
+test('a rejected hunk is written back with its text, so the next write is not read as a user edit', () => {
+	const ledger = new TurnLedger('s1', 'exact-before');
+	ledger.beginTurn();
+	ledger.record(modify('a\nb\nc\n', 'a\nB\nc\n'));
+
+	const agentText = splitLines('a\nB\nc\n');
+	const outcome = rejectHunk(fileAt(ledger.current()), 'h1');
+	const restored = splitLines('a\nb\nc\n');
+	// Reject writes bytes (D26), so the host reconciles the model against the document it just wrote
+	// and hands both back through the seam.
+	ledger.replaceFile(reconcileDocument(outcome.file, agentText, restored, 'user'), restored);
+	strictEqual(joinLines(ledger.lastKnown(PATH) as never), 'a\nb\nc\n');
+
+	const turn = ledger.record(modify('a\nb\nc\n', 'a\nb\nC\n'));
+	deepStrictEqual(
+		fileAt(turn).hunks.map((hunk) => [hunk.id, hunk.status, hunk.rejectReason]),
+		[
+			['h1', 'rejected', 'user'],
+			['h2', 'pending', undefined],
+		],
+	);
+});
+
+test('replaceFile is a no-op for a path the turn never recorded', () => {
+	const ledger = new TurnLedger('s1', 'exact-before');
+	ledger.beginTurn();
+	ledger.record(modify('a\nb\n', 'a\nB\n'));
+	const orphan = acceptHunk(
+		{ ...fileAt(ledger.current()), path: 'src/elsewhere.ts' },
+		'h1',
+	);
+	const turn = ledger.replaceFile(orphan);
+	deepStrictEqual(
+		filesOf(turn).map((file) => file.path),
+		[PATH],
+	);
+	throws(() => new TurnLedger('s2', 'exact-before').replaceFile(orphan), /beginTurn/);
 });

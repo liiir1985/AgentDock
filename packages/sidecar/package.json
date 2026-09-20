@@ -1,0 +1,21 @@
+{
+  "name": "@agentdock/sidecar",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "AgentDock's OMP harness sidecar: runs under Bun, owns the `createAgentSession` session and turns hook-observed writes into core `AdapterEvent`s (M1: in-process extension hooks, never `customTools` shadowing).",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ./",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@agentdock/core": "*",
+    "@oh-my-pi/pi-coding-agent": "18.2.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "24.13.5",
+    "typescript": "7.0.2"
+  }
+}
