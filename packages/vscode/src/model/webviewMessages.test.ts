@@ -106,3 +106,117 @@ test('chatHtml wires the prompt input, the stop button and the ready handshake',
 	ok(html.includes("message.type === 'delta'"), 'streaming deltas are handled');
 	ok(html.includes("'▸ '"), 'tool activity is prefixed with a marker');
 });
+
+interface FakeNode {
+	className: string;
+	value: string;
+	scrollTop: number;
+	scrollHeight: number;
+	children: FakeNode[];
+	textContent: string;
+	appendChild(child: FakeNode): FakeNode;
+	addEventListener(type: string, handler: (event: unknown) => void): void;
+}
+
+/** Just enough DOM for the chat script: elements that keep children and can read their text back. */
+function fakeNode(): FakeNode {
+	const children: FakeNode[] = [];
+	let own: string | undefined;
+	const node = {
+		className: '',
+		value: '',
+		scrollTop: 0,
+		scrollHeight: 0,
+		children,
+		appendChild(child: FakeNode): FakeNode {
+			children.push(child);
+			return child;
+		},
+		addEventListener(): void {
+			// The panel's own listeners are not what these tests exercise.
+		},
+	} as unknown as FakeNode;
+	Object.defineProperty(node, 'textContent', {
+		get: () => (own !== undefined ? own : children.map((child) => child.textContent).join('')),
+		set: (value: string) => {
+			own = value;
+			children.length = 0;
+		},
+	});
+	return node;
+}
+
+function textNode(text: string): FakeNode {
+	return { textContent: text, children: [] } as unknown as FakeNode;
+}
+
+/** Runs the real chat script against the fake DOM and hands back the stream plus a delivery function. */
+function openChatPanel(): { stream: FakeNode; deliver: (message: unknown) => void } {
+	const stream = fakeNode();
+	const byId = new Map<string, FakeNode>([
+		['stream', stream],
+		['input', fakeNode()],
+		['send', fakeNode()],
+		['stop', fakeNode()],
+	]);
+	const handlers: ((event: { data: unknown }) => void)[] = [];
+	const document = {
+		getElementById: (id: string) => byId.get(id) ?? null,
+		createElement: () => fakeNode(),
+		createTextNode: (text: string) => textNode(text),
+	};
+	const window = {
+		addEventListener: (type: string, handler: (event: { data: unknown }) => void) => {
+			if (type === 'message') handlers.push(handler);
+		},
+	};
+	const acquireVsCodeApi = () => ({ postMessage: () => undefined });
+	const script = /<script nonce="[^"]*">([\s\S]*?)<\/script>/.exec(chatHtml(NONCE, CSP_SOURCE));
+	if (script === null) throw new Error('the chat document carries no script');
+	new Function('document', 'window', 'acquireVsCodeApi', script[1])(document, window, acquireVsCodeApi);
+	return {
+		stream,
+		deliver: (message: unknown) => {
+			for (const handler of handlers) handler({ data: message });
+		},
+	};
+}
+
+test('the completed answer does not repeat the text the deltas already streamed', () => {
+	const { stream, deliver } = openChatPanel();
+	deliver({ type: 'delta', text: 'Done. ' });
+	deliver({ type: 'delta', text: '26 bytes written.' });
+	deliver({ type: 'message', kind: 'assistant', text: 'Done. 26 bytes written.' });
+	strictEqual(stream.children.length, 1, 'one answer, one bubble');
+	strictEqual(stream.children[0].textContent, 'Done. 26 bytes written.');
+});
+
+test('a second answer in the same turn starts a new bubble instead of extending the first', () => {
+	const { stream, deliver } = openChatPanel();
+	deliver({ type: 'delta', text: 'first' });
+	deliver({ type: 'message', kind: 'assistant', text: 'first' });
+	deliver({ type: 'delta', text: 'second' });
+	deliver({ type: 'message', kind: 'assistant', text: 'second' });
+	strictEqual(stream.children.length, 2);
+	strictEqual(stream.children[0].textContent, 'first');
+	strictEqual(stream.children[1].textContent, 'second');
+});
+
+test('a completed message that says more than the deltas is kept', () => {
+	const { stream, deliver } = openChatPanel();
+	deliver({ type: 'delta', text: 'partial' });
+	deliver({ type: 'message', kind: 'assistant', text: 'the full answer' });
+	strictEqual(stream.children.length, 2);
+	strictEqual(stream.children[1].textContent, 'the full answer');
+});
+
+test('user prompts and tool rows still get their own rows', () => {
+	const { stream, deliver } = openChatPanel();
+	deliver({ type: 'message', kind: 'user', text: 'do it' });
+	deliver({ type: 'message', kind: 'tool', text: 'edit src/a.ts' });
+	deliver({ type: 'message', kind: 'assistant', text: 'ok' });
+	strictEqual(stream.children.length, 3);
+	strictEqual(stream.children[1].className, 'tool');
+	strictEqual(stream.children[1].textContent, '▸ edit src/a.ts');
+	strictEqual(stream.children[2].className, 'bubble assistant');
+});

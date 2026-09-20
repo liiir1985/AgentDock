@@ -303,6 +303,8 @@ const CHAT_SCRIPT = `
 const vscode = acquireVsCodeApi();
 const stream = document.getElementById('stream');
 const input = document.getElementById('input');
+// The bubble the assistant's deltas are currently filling; a completed message closes it (see below).
+let streaming = null;
 
 function el(tag, className, text) {
 	const node = document.createElement(tag);
@@ -319,13 +321,26 @@ function appendBubble(kind, text) {
 }
 
 function appendDelta(text) {
-	let last = stream.lastElementChild;
-	if (!last || last.className !== 'bubble assistant') {
-		last = el('div', 'bubble assistant');
-		stream.appendChild(last);
+	if (!streaming) {
+		streaming = el('div', 'bubble assistant');
+		stream.appendChild(streaming);
 	}
-	last.appendChild(document.createTextNode(text));
+	streaming.appendChild(document.createTextNode(text));
 	stream.scrollTop = stream.scrollHeight;
+}
+
+// The panel streams assistant text as deltas and the harness then reports the completed message with the
+// same text: rendering both would show every answer twice. So the completed message closes the bubble the
+// deltas filled - the normal case - or, when it carries something else, becomes its own bubble.
+function appendMessage(kind, text) {
+	if (kind === 'assistant') {
+		if (streaming && streaming.textContent.trim() === text.trim()) {
+			streaming = null;
+			return;
+		}
+		streaming = null;
+	}
+	appendBubble(kind, text);
 }
 
 function send() {
@@ -347,7 +362,7 @@ window.addEventListener('message', function (event) {
 	const message = event.data;
 	if (!message) return;
 	if (message.type === 'delta') appendDelta(message.text);
-	else if (message.type === 'message') appendBubble(message.kind, message.text);
+	else if (message.type === 'message') appendMessage(message.kind, message.text);
 });
 
 vscode.postMessage({ type: 'ready' });

@@ -13,6 +13,8 @@
  * `AdapterEvent`s are a projection of it, plus the `file-write` events the interception hooks produce.
  */
 
+import * as path from 'node:path';
+
 import type { AdapterCapabilities, AdapterEvent, ConfigOption, UsageReport } from '@agentdock/core';
 
 import { SessionManager, VERSION, createAgentSession } from '@oh-my-pi/pi-coding-agent';
@@ -142,6 +144,7 @@ export async function startOmpSession(config: OmpSessionConfig): Promise<OmpAdap
 		diagnostics,
 		hooks: intercept.hooks,
 		broker,
+		workspaceRoot,
 	});
 	holder.sink = (event) => session.publishEvent(event);
 	uiHolder.send = (request) => session.publishUiRequest(request);
@@ -169,6 +172,8 @@ interface SessionInternals {
 	diagnostics: Diagnostics;
 	hooks: InterceptHooks;
 	broker: UiBroker;
+	/** The workspace root: activity rows and snapshots are stated relative to it (D11). */
+	workspaceRoot: string;
 }
 
 class OmpSdkSession implements OmpAdapterSession {
@@ -351,7 +356,7 @@ class OmpSdkSession implements OmpAdapterSession {
 				this.publishEvent({
 					type: 'tool-activity',
 					tool: event.toolName,
-					summary: activitySummary(event.toolName, event.args),
+					summary: activitySummary(event.toolName, event.args, this.internals.workspaceRoot),
 				});
 				return;
 			case 'tool_execution_end':
@@ -367,10 +372,30 @@ class OmpSdkSession implements OmpAdapterSession {
 	}
 }
 
-/** `write src/a.ts` — the one-line form the chat panel shows for a tool call. */
-function activitySummary(tool: string, args: unknown): string {
-	const candidate = firstString(args, ['path', 'file_path', 'command', 'input', 'query', 'pattern']);
-	return candidate === undefined ? tool : `${tool} ${firstLine(candidate)}`;
+/**
+ * `write src/a.ts` - the one-line form the chat panel shows for a tool call.
+ *
+ * A path argument is the one worth shortening: the agent passes it absolute, and a row that opens with
+ * `c:/Users/.../Temp/.../seed-a.ts` buries the part a reviewer reads (D11). Commands and queries are left
+ * exactly as they came - rewriting paths inside a shell command would be guessing.
+ */
+export function activitySummary(tool: string, args: unknown, cwd: string): string {
+	const target = firstString(args, ['path', 'file_path']);
+	if (target !== undefined) return `${tool} ${firstLine(relativeTo(target, cwd))}`;
+	const other = firstString(args, ['command', 'input', 'query', 'pattern']);
+	return other === undefined ? tool : `${tool} ${firstLine(other)}`;
+}
+
+/**
+ * OMP decorates a target with a line suffix (`src/a.ts:12-20`, `src/a.ts:-15`): the suffix stays, the
+ * workspace prefix goes. Anything outside the workspace is shown as it came, and the `c:` of a Windows
+ * drive is not a suffix - the regex only accepts `:` followed by digits.
+ */
+function relativeTo(value: string, cwd: string): string {
+	const match = /^(.+?)(:\d*(?:-\d+)?)?$/.exec(value);
+	const relative = path.relative(cwd, match?.[1] ?? value);
+	if (relative.length === 0 || relative.startsWith('..') || path.isAbsolute(relative)) return value;
+	return `${relative.replace(/\\/g, '/')}${match?.[2] ?? ''}`;
 }
 
 function firstString(value: unknown, keys: readonly string[]): string | undefined {
